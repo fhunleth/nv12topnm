@@ -7,8 +7,11 @@
 
 static void usage(const char *name)
 {
-    fprintf(stderr, "%s [-w <width>] [-h <height>] [-l <bytes per line>] [-o <output filename>] <input file>\n", name);
+    fprintf(stderr, "%s [-w <width>] [-h <height>] [-b <bytes per line>] [-l] [-o <output filename>] <input file>\n", name);
     fprintf(stderr, "Converts a raw NV12 (YCbCr 4:2:0) buffer to a PNM.\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "-l luminance only\n");
+    fprintf(stderr, "-c chrominance only\n");
 }
 
 static int constrain(int low, int value, int high)
@@ -29,6 +32,8 @@ int main(int argc, char *argv[])
     int width = 0;
     int height = 0;
     int bytes_per_line = 0;
+    int luminance_only = 0;
+    int chrominance_only = 0;
     int image_size;
     int luminance_size;
     const char *output_filename = 0;
@@ -37,7 +42,7 @@ int main(int argc, char *argv[])
     int column;
     int row;
 
-    while ((opt = getopt(argc, argv, "w:h:l:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "w:h:b:o:lc")) != -1) {
         switch (opt) {
         case 'w':
             width = atoi(optarg);
@@ -45,11 +50,17 @@ int main(int argc, char *argv[])
         case 'h':
             height = atoi(optarg);
             break;
-        case 'l':
+        case 'b':
             bytes_per_line = atoi(optarg);
             break;
         case 'o':
             output_filename = optarg;
+            break;
+        case 'l':
+            luminance_only = 1;
+            break;
+        case 'c':
+            chrominance_only = 1;
             break;
         default:
             usage(argv[0]);
@@ -107,9 +118,9 @@ int main(int argc, char *argv[])
         for (column = 0; column < width; column++) {
             unsigned char rgb[3];
 
-            int y = buffer[row * bytes_per_line + column];
-            int cb = buffer[luminance_size + (row / 2 * bytes_per_line) + (column & ~1)] - 128;
-            int cr = buffer[luminance_size + (row / 2 * bytes_per_line) + (column | 1)] - 128;
+            int y = chrominance_only ? 128 : buffer[row * bytes_per_line + column];
+            int cb = luminance_only ? 0 : buffer[luminance_size + (row / 2 * bytes_per_line) + (column & ~1)] - 128;
+            int cr = luminance_only ? 0 : buffer[luminance_size + (row / 2 * bytes_per_line) + (column | 1)] - 128;
 
             int r = y + 91881 * cr / 65536;
             int g = y - (22572 * cb + 46802 * cr) / 65536;
