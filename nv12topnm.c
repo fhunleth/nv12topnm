@@ -12,6 +12,7 @@ static void usage(const char *name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "-l luminance only\n");
     fprintf(stderr, "-c chrominance only\n");
+    fprintf(stderr, "-s swap cb and cr\n");
 }
 
 static int constrain(int low, int value, int high)
@@ -34,6 +35,7 @@ int main(int argc, char *argv[])
     int bytes_per_line = 0;
     int luminance_only = 0;
     int chrominance_only = 0;
+    int swap_chrominance = 0;
     int image_size;
     int luminance_size;
     const char *output_filename = 0;
@@ -42,7 +44,7 @@ int main(int argc, char *argv[])
     int column;
     int row;
 
-    while ((opt = getopt(argc, argv, "w:h:b:o:lc")) != -1) {
+    while ((opt = getopt(argc, argv, "w:h:b:o:lcs")) != -1) {
         switch (opt) {
         case 'w':
             width = atoi(optarg);
@@ -62,6 +64,9 @@ int main(int argc, char *argv[])
         case 'c':
             chrominance_only = 1;
             break;
+        case 's':
+            swap_chrominance = 1;
+            break;
         default:
             usage(argv[0]);
             exit(-1);
@@ -72,7 +77,8 @@ int main(int argc, char *argv[])
         input_filename = argv[optind];
 
     if (width <= 0 || height <= 0) {
-        fprintf(stderr, "Must specify width and height of input image\n");
+        fprintf(stderr, "ERROR: Must specify width and height of input image\n");
+        usage(argv[0]);
         exit(-1);
 
     }
@@ -117,14 +123,28 @@ int main(int argc, char *argv[])
     for (row = 0; row < height; row++) {
         for (column = 0; column < width; column++) {
             unsigned char rgb[3];
+            int y, cb, cr;
+            int r, g, b;
 
-            int y = chrominance_only ? 128 : buffer[row * bytes_per_line + column];
-            int cb = luminance_only ? 0 : buffer[luminance_size + (row / 2 * bytes_per_line) + (column & ~1)] - 128;
-            int cr = luminance_only ? 0 : buffer[luminance_size + (row / 2 * bytes_per_line) + (column | 1)] - 128;
+            if (!chrominance_only)
+                y = buffer[row * bytes_per_line + column];
+            else
+                y = 128;
 
-            int r = y + 91881 * cr / 65536;
-            int g = y - (22572 * cb + 46802 * cr) / 65536;
-            int b = y + 116130 * cb / 65536;
+            if (!luminance_only) {
+                cb = buffer[luminance_size + (row / 2 * bytes_per_line) + (column & ~1)] - 128;
+                cr = buffer[luminance_size + (row / 2 * bytes_per_line) + (column | 1)] - 128;
+
+                if (swap_chrominance) {
+                    int tmp = cb;
+                    cb = cr;
+                    cr = tmp;
+                }
+            }
+
+            r = y + 91881 * cr / 65536;
+            g = y - (22572 * cb + 46802 * cr) / 65536;
+            b = y + 116130 * cb / 65536;
 
             r = constrain(0, r, 255);
             g = constrain(0, g, 255);
